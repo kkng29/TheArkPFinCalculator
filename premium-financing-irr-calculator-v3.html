@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>保費融資 IRR 計算器 v3 | Premium Financing IRR Calculator v3</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap');
+    body { font-family: 'Noto Sans TC', system-ui, sans-serif; }
+    .card { @apply bg-white rounded-xl shadow-sm border border-slate-200; }
+    .input-label { @apply block text-xs font-medium text-slate-600 mb-1; }
+    .input-field { @apply w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white; }
+    .btn-primary { @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-5 rounded-lg transition text-sm; }
+    .btn-secondary { @apply bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-4 rounded-lg transition text-sm; }
+    .metric-positive { color: #059669; }
+    .metric-negative { color: #e11d48; }
+    .section-title { @apply text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-slate-900 text-white">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <div>
+        <h1 class="text-lg font-bold">保費融資 IRR 計算器 <span class="text-blue-400 text-sm font-normal">v3</span></h1>
+        <p class="text-slate-400 text-xs mt-0.5">Premium Financing IRR Calculator v3 · SV 按比率自動計算</p>
+      </div>
+      <div class="text-xs text-slate-400 text-right">
+        <div>只需改 Total Premium，第5–10年 SV 自動更新</div>
+        <div class="mt-0.5">僅供內部分析使用</div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-5 space-y-5">
+
+    <!-- ========== 基本參數 ========== -->
+    <section class="card p-5">
+      <div class="section-title">
+        <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+        基本參數設定
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div>
+          <label class="input-label">總保費 Total Premium (USD)</label>
+          <input type="number" id="totalPremium" class="input-field" value="190000" step="1000" />
+        </div>
+        <div>
+          <label class="input-label">保費折扣 Discount %</label>
+          <input type="number" id="discountPct" class="input-field" value="2" step="0.1" min="0" max="10" />
+        </div>
+        <div>
+          <label class="input-label">折扣金額 Discount Amount (USD)</label>
+          <div id="discountAmountDisplay" class="input-field bg-slate-100 text-slate-700 font-medium flex items-center">—</div>
+        </div>
+        <div>
+          <label class="input-label">年費 Annual Fee %</label>
+          <input type="number" id="annualFeePct" class="input-field" value="0.25" step="0.05" min="0" max="1" />
+        </div>
+        <div>
+          <label class="input-label">融資限額匯率 Financing Amount FX</label>
+          <input type="number" id="fxLoan" class="input-field" value="7.75" step="0.01" />
+        </div>
+        <div>
+          <label class="input-label">保單開始日期資金匯率 Starting Date Premium FX</label>
+          <input type="number" id="fxEquity" class="input-field" value="7.85" step="0.01" />
+        </div>
+        <div>
+          <label class="input-label">現金價值匯率 Cash Value FX</label>
+          <input type="number" id="fxSV" class="input-field" value="7.80" step="0.01" />
+        </div>
+      </div>
+
+      <!-- Financing Amount = Day-1 SV × Financing Ratio -->
+      <div class="mt-5 pt-5 border-t border-slate-200">
+        <div class="section-title mb-3">
+          <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+          融資金額計算：保單首日退保價值 × 保費融資比率
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div>
+            <label class="input-label">1. 保單首日退保價值比例 %</label>
+            <input type="number" id="day1CvPct" class="input-field" value="83" step="0.5" min="50" max="100" />
+            <p class="text-[10px] text-slate-400 mt-0.5">不同計劃的首日退保價值比例會不同</p>
+          </div>
+          <div>
+            <label class="input-label">2. 計算出的首日退保價值 (USD)</label>
+            <div id="previewDay1Cv" class="input-field bg-slate-100 text-slate-700 font-medium flex items-center">—</div>
+          </div>
+          <div>
+            <label class="input-label">3. 保費融資比率 LTV %</label>
+            <input type="number" id="ltvPct" class="input-field" value="95" step="1" min="50" max="100" />
+            <p class="text-[10px] text-slate-400 mt-0.5">銀行常見 80%–95%，會因計劃而異</p>
+          </div>
+        </div>
+        <div class="mt-4 bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-3 text-sm">
+          <div class="text-indigo-700 font-medium mb-2">融資金額預覽</div>
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1 text-xs">
+            <div>Financing Amount 融資金額 (USD)：</div>
+            <div class="font-semibold text-indigo-800" id="previewLoanUsd">—</div>
+            <div></div>
+            <div>Financing Amount 融資金額 (HKD)：</div>
+            <div class="font-semibold text-indigo-800" id="previewLoanHkd">—</div>
+            <div></div>
+            <div>實際融資比例（佔總保費）：</div>
+            <div class="font-semibold" id="previewFinancingRatio">—</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== 現金價值輸入（按比率自動計算） ========== -->
+    <section class="card p-5">
+      <div class="section-title">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+        保單現金價值 Surrender Value — 按 Total Premium 比率自動計算
+      </div>
+      <p class="text-xs text-slate-500 mb-3">
+        只需修改 <strong>Total Premium</strong> 或下方的 <strong>SV 比率</strong>，第 5–10 年的 Surrender Value 會自動更新。
+        （預設比率取自 CTFLife 範例）
+      </p>
+      
+      <!-- SV 比率 -->
+      <div class="mb-4">
+        <div class="text-xs font-medium text-slate-600 mb-2">各年 SV 比率（相對於 Total Premium）</div>
+        <div class="grid grid-cols-3 md:grid-cols-6 gap-3">
+          <div>
+            <label class="input-label">Year 5 比率</label>
+            <input type="number" id="svRatio5" class="input-field" value="1.17204" step="0.00001" />
+          </div>
+          <div>
+            <label class="input-label">Year 6 比率</label>
+            <input type="number" id="svRatio6" class="input-field" value="1.26056" step="0.00001" />
+          </div>
+          <div>
+            <label class="input-label">Year 7 比率</label>
+            <input type="number" id="svRatio7" class="input-field" value="1.35" step="0.00001" />
+          </div>
+          <div>
+            <label class="input-label">Year 8 比率</label>
+            <input type="number" id="svRatio8" class="input-field" value="1.44803" step="0.00001" />
+          </div>
+          <div>
+            <label class="input-label">Year 9 比率</label>
+            <input type="number" id="svRatio9" class="input-field" value="1.5515" step="0.00001" />
+          </div>
+          <div>
+            <label class="input-label">Year 10 比率</label>
+            <input type="number" id="svRatio10" class="input-field" value="1.65" step="0.00001" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 自動計算出的 SV 金額（唯讀顯示） -->
+      <div>
+        <div class="text-xs font-medium text-slate-600 mb-2">自動計算的 Surrender Value (USD)</div>
+        <div class="grid grid-cols-3 md:grid-cols-6 gap-3">
+          <div>
+            <label class="input-label">Year 5</label>
+            <div id="sv5Display" class="input-field bg-emerald-50 text-emerald-800 font-medium flex items-center">—</div>
+            <input type="hidden" id="sv5" value="222687.6" />
+          </div>
+          <div>
+            <label class="input-label">Year 6</label>
+            <div id="sv6Display" class="input-field bg-emerald-50 text-emerald-800 font-medium flex items-center">—</div>
+            <input type="hidden" id="sv6" value="239506.4" />
+          </div>
+          <div>
+            <label class="input-label">Year 7</label>
+            <div id="sv7Display" class="input-field bg-emerald-50 text-emerald-800 font-medium flex items-center">—</div>
+            <input type="hidden" id="sv7" value="256500" />
+          </div>
+          <div>
+            <label class="input-label">Year 8</label>
+            <div id="sv8Display" class="input-field bg-emerald-50 text-emerald-800 font-medium flex items-center">—</div>
+            <input type="hidden" id="sv8" value="275125.7" />
+          </div>
+          <div>
+            <label class="input-label">Year 9</label>
+            <div id="sv9Display" class="input-field bg-emerald-50 text-emerald-800 font-medium flex items-center">—</div>
+            <input type="hidden" id="sv9" value="294785" />
+          </div>
+          <div>
+            <label class="input-label">Year 10</label>
+            <div id="sv10Display" class="input-field bg-emerald-50 text-emerald-800 font-medium flex items-center">—</div>
+            <input type="hidden" id="sv10" value="313500" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== 利率情境 ========== -->
+    <section class="card p-5">
+      <div class="section-title">
+        <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+        利率情境（可同時比較最多 3 組）
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Rate A -->
+        <div class="border-2 border-blue-300 bg-blue-50 rounded-xl p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-semibold text-blue-800 text-sm">情境 A</span>
+            <label class="flex items-center gap-1.5 text-xs">
+              <input type="checkbox" id="enableA" checked class="rounded" /> 啟用
+            </label>
+          </div>
+          <div class="space-y-2">
+            <div>
+              <label class="input-label">Interest Rate %</label>
+              <input type="number" id="rateA" class="input-field" value="3.25" step="0.05" />
+            </div>
+            <div>
+              <label class="input-label">說明</label>
+              <input type="text" id="labelA" class="input-field" value="H+1.35% (約 3.25%)" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Rate B -->
+        <div class="border-2 border-amber-300 bg-amber-50 rounded-xl p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-semibold text-amber-800 text-sm">情境 B</span>
+            <label class="flex items-center gap-1.5 text-xs">
+              <input type="checkbox" id="enableB" checked class="rounded" /> 啟用
+            </label>
+          </div>
+          <div class="space-y-2">
+            <div>
+              <label class="input-label">Interest Rate %</label>
+              <input type="number" id="rateB" class="input-field" value="4.25" step="0.05" />
+            </div>
+            <div>
+              <label class="input-label">說明</label>
+              <input type="text" id="labelB" class="input-field" value="壓力測試 4.25%" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Rate C -->
+        <div class="border-2 border-emerald-300 bg-emerald-50 rounded-xl p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-semibold text-emerald-800 text-sm">情境 C</span>
+            <label class="flex items-center gap-1.5 text-xs">
+              <input type="checkbox" id="enableC" checked class="rounded" /> 啟用
+            </label>
+          </div>
+          <div class="space-y-2">
+            <div>
+              <label class="input-label">Interest Rate %</label>
+              <input type="number" id="rateC" class="input-field" value="1.60" step="0.05" />
+            </div>
+            <div>
+              <label class="input-label">說明</label>
+              <input type="text" id="labelC" class="input-field" value="低息環境 1.60%" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 flex flex-wrap items-center gap-3">
+        <button onclick="calculateAll()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-lg shadow-md transition text-sm">重新計算</button>
+        <button onclick="resetAll()" class="bg-slate-700 hover:bg-slate-800 text-white font-bold py-2.5 px-6 rounded-lg shadow-md transition text-sm">重設</button>
+        <span class="text-xs text-emerald-600 font-medium">✓ 已啟用即時計算 — 修改任何數字後結果會自動更新</span>
+      </div>
+    </section>
+
+    <!-- ========== 計算結果摘要 ========== -->
+    <section class="card p-5">
+      <div class="section-title">
+        <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+        計算結果摘要（共用參數）
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-sm" id="summaryBox">
+        <!-- filled by JS -->
+      </div>
+    </section>
+
+    <!-- ========== 第5-10年 IRR 對比表 ========== -->
+    <section class="card overflow-hidden">
+      <div class="px-5 py-3 bg-slate-50 border-b border-slate-200">
+        <h3 class="font-semibold text-slate-800 text-sm">第 5 年至第 10 年退出 IRR 對比</h3>
+        <p class="text-xs text-slate-500 mt-0.5">這是最重要的決策表 — 直接對應你 Excel 的多個 IRR 結果</p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm" id="irrTable">
+          <thead class="bg-slate-100 text-slate-600">
+            <tr>
+              <th class="text-left px-4 py-2.5 font-medium">退出年份</th>
+              <th class="text-right px-4 py-2.5 font-medium" id="thRateA">情境 A</th>
+              <th class="text-right px-4 py-2.5 font-medium" id="thRateB">情境 B</th>
+              <th class="text-right px-4 py-2.5 font-medium" id="thRateC">情境 C</th>
+            </tr>
+          </thead>
+          <tbody id="irrBody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ========== 圖表 ========== -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div class="card p-5">
+        <h3 class="font-semibold text-slate-800 text-sm mb-3">IRR 走勢（不同退出年份）</h3>
+        <canvas id="irrChart" height="240"></canvas>
+      </div>
+      <div class="card p-5">
+        <h3 class="font-semibold text-slate-800 text-sm mb-3">利率敏感度（固定退出 Year 10）</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs text-center" id="sensTable">
+            <thead id="sensThead"></thead>
+            <tbody id="sensBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 詳細現金流（可展開） ========== -->
+    <section class="card overflow-hidden">
+      <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+        <h3 class="font-semibold text-slate-800 text-sm">詳細現金流（選情境 + 退出年份）</h3>
+        <div class="flex gap-2">
+          <select id="detailScenario" class="text-xs border border-slate-300 rounded px-2 py-1" onchange="renderDetailCF()">
+            <option value="A">情境 A</option>
+            <option value="B">情境 B</option>
+            <option value="C">情境 C</option>
+          </select>
+          <select id="detailYear" class="text-xs border border-slate-300 rounded px-2 py-1" onchange="renderDetailCF()">
+            <option value="5">Year 5</option>
+            <option value="6">Year 6</option>
+            <option value="7">Year 7</option>
+            <option value="8">Year 8</option>
+            <option value="9">Year 9</option>
+            <option value="10" selected>Year 10</option>
+          </select>
+        </div>
+      </div>
+      <div class="overflow-x-auto max-h-80">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-100 text-slate-600 sticky top-0">
+            <tr>
+              <th class="text-left px-4 py-2">Year</th>
+              <th class="text-right px-4 py-2">Cashflow (HKD)</th>
+              <th class="text-left px-4 py-2">說明</th>
+            </tr>
+          </thead>
+          <tbody id="detailBody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+      <div class="px-5 py-3 bg-slate-50 border-t border-slate-200 text-sm">
+        <span class="text-slate-600">計算出的 IRR：</span>
+        <span id="detailIRR" class="font-bold text-lg ml-2">—</span>
+      </div>
+    </section>
+
+    <!-- Notes -->
+    <section class="card p-5 text-xs text-slate-600 space-y-2">
+      <h3 class="font-semibold text-slate-800 text-sm">計算邏輯說明（完全對齊你的 Excel）</h3>
+      <ul class="list-disc list-inside space-y-1 leading-relaxed">
+        <li><strong>保單首日退保價值</strong> = Total Premium × 首日退保價值比例%（可因計劃調整）</li>
+        <li><strong>Financing Amount 融資金額 (USD)</strong> = 首日退保價值 × 保費融資比率 LTV%（可因計劃調整）</li>
+        <li><strong>Financing Amount 融資金額 (HKD)</strong> = 融資金額 (USD) × 融資限額匯率</li>
+        <li><strong>Annual Fee</strong> = 融資金額 (HKD) × 年費%</li>
+        <li><strong>Initial Investment</strong> = (Total Premium − Discount) × 保單開始日期資金匯率 − 融資金額 (HKD)</li>
+        <li><strong>每年利息+年費</strong> = −(融資金額 HKD × Interest Rate + Annual Fee)</li>
+        <li><strong>Final Net Profit at Year T</strong> = (SV_T × 現金價值匯率) − 融資金額 HKD + 當年利息年費</li>
+        <li><strong>Surrender Value (第5–10年)</strong> = Total Premium × 該年 SV 比率（可自行調整比率，預設為 CTFLife 範例）</li>
+        <li>IRR 使用與 Excel 相同的現金流結構計算</li>
+      </ul>
+      <p class="text-slate-400 pt-2">本工具僅供內部分析與教育用途，不構成任何投資、保險或貸款建議。實際數字以銀行批核及保險公司 illustration 為準。</p>
+    </section>
+  </main>
+
+  <footer class="max-w-7xl mx-auto px-4 py-6 text-center text-xs text-slate-400">
+    Premium Financing IRR Calculator · 對齊 EleBank × CTFLife 邏輯 · 2026
+  </footer>
+
+  <script>
+    // ========== Utilities ==========
+    const fmt = (n, d = 0) => {
+      if (n == null || isNaN(n)) return '—';
+      return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+    };
+    const fmtPct = (n, d = 2) => {
+      if (n == null || isNaN(n)) return '—';
+      return (n * 100).toFixed(d) + '%';
+    };
+
+    // Newton-Raphson IRR (same as Excel IRR)
+    function calcIRR(cashflows, guess = 0.1) {
+      const maxIter = 200;
+      const tol = 1e-9;
+      let rate = guess;
+      for (let i = 0; i < maxIter; i++) {
+        let npv = 0, dnpv = 0;
+        for (let t = 0; t < cashflows.length; t++) {
+          const df = Math.pow(1 + rate, t);
+          npv += cashflows[t] / df;
+          if (t > 0) dnpv -= t * cashflows[t] / Math.pow(1 + rate, t + 1);
+        }
+        if (Math.abs(dnpv) < 1e-14) break;
+        const newRate = rate - npv / dnpv;
+        if (Math.abs(newRate - rate) < tol) return newRate;
+        rate = newRate;
+        if (rate < -0.99) rate = -0.99;
+      }
+      return isFinite(rate) ? rate : null;
+    }
+
+    // ========== Auto-calculate SV from ratios × Total Premium ==========
+    function updateSVFromRatios() {
+      const totalPremium = parseFloat(document.getElementById('totalPremium').value) || 0;
+      const years = [5, 6, 7, 8, 9, 10];
+      years.forEach(y => {
+        const ratio = parseFloat(document.getElementById('svRatio' + y).value) || 0;
+        const sv = totalPremium * ratio;
+        const hidden = document.getElementById('sv' + y);
+        const display = document.getElementById('sv' + y + 'Display');
+        if (hidden) hidden.value = sv;
+        if (display) display.textContent = 'US$ ' + sv.toLocaleString('en-US', { maximumFractionDigits: 1 });
+      });
+    }
+
+    // ========== Financing Amount Preview (Day-1 SV × LTV) ==========
+    function updateLoanPreview() {
+      const totalPremium = parseFloat(document.getElementById('totalPremium').value) || 0;
+      const discountPct = parseFloat(document.getElementById('discountPct').value) || 0;
+      const day1CvPct = parseFloat(document.getElementById('day1CvPct').value) || 0;
+      const ltvPct = parseFloat(document.getElementById('ltvPct').value) || 0;
+      const fxLoan = parseFloat(document.getElementById('fxLoan').value) || 7.75;
+
+      const discountAmount = totalPremium * (discountPct / 100);
+      const day1Cv = totalPremium * (day1CvPct / 100);
+      const loanUSD = day1Cv * (ltvPct / 100);
+      const loanHKD = loanUSD * fxLoan;
+      const financingRatio = totalPremium > 0 ? (loanUSD / totalPremium * 100) : 0;
+
+      // Discount Amount display
+      const discEl = document.getElementById('discountAmountDisplay');
+      if (discEl) discEl.textContent = 'US$ ' + discountAmount.toLocaleString('en-US', {maximumFractionDigits: 0});
+
+      // Day-1 CV amount
+      const day1El = document.getElementById('previewDay1Cv');
+      if (day1El) day1El.textContent = 'US$ ' + day1Cv.toLocaleString('en-US', {maximumFractionDigits: 0});
+
+      document.getElementById('previewLoanUsd').textContent = 'US$ ' + loanUSD.toLocaleString('en-US', {maximumFractionDigits: 0});
+      
+      const hkdEl = document.getElementById('previewLoanHkd');
+      if (hkdEl) hkdEl.textContent = 'HK$ ' + loanHKD.toLocaleString('en-US', {maximumFractionDigits: 0});
+
+      document.getElementById('previewFinancingRatio').textContent = financingRatio.toFixed(2) + '%';
+
+      // Also refresh SV amounts
+      updateSVFromRatios();
+    }
+
+    // ========== Core Calculation (exactly matching Excel logic) ==========
+    function computeScenario(interestRate) {
+      const totalPremium = parseFloat(document.getElementById('totalPremium').value) || 0;
+      const discountPct = parseFloat(document.getElementById('discountPct').value) || 0;
+      const day1CvPct = parseFloat(document.getElementById('day1CvPct').value) || 83;
+      const ltvPct = parseFloat(document.getElementById('ltvPct').value) || 95;
+      const annualFeePct = parseFloat(document.getElementById('annualFeePct').value) || 0.25;
+      const fxLoan = parseFloat(document.getElementById('fxLoan').value) || 7.75;
+      const fxEquity = parseFloat(document.getElementById('fxEquity').value) || 7.85;
+      const fxSV = parseFloat(document.getElementById('fxSV').value) || 7.80;
+
+      const discount = totalPremium * (discountPct / 100);
+      // New: Loan = Day-1 CV × LTV
+      const day1Cv = totalPremium * (day1CvPct / 100);
+      const loanUSD = day1Cv * (ltvPct / 100);
+      const loanHKD = loanUSD * fxLoan;
+      const annualFee = loanHKD * (annualFeePct / 100);
+      const initialInvestment = (totalPremium - discount) * fxEquity - loanHKD;
+      const annualCost = -(loanHKD * interestRate + annualFee); // negative
+
+      const sv = {
+        5: parseFloat(document.getElementById('sv5').value) || 0,
+        6: parseFloat(document.getElementById('sv6').value) || 0,
+        7: parseFloat(document.getElementById('sv7').value) || 0,
+        8: parseFloat(document.getElementById('sv8').value) || 0,
+        9: parseFloat(document.getElementById('sv9').value) || 0,
+        10: parseFloat(document.getElementById('sv10').value) || 0
+      };
+
+      // For each exit year 5-10, build cashflows and compute IRR
+      const irrs = {};
+      const details = {};
+
+      for (let exitYear = 5; exitYear <= 10; exitYear++) {
+        const cfs = [];
+        // Year 0
+        cfs.push(-initialInvestment);
+        // Year 1 to exitYear-1
+        for (let y = 1; y < exitYear; y++) {
+          cfs.push(annualCost);
+        }
+        // Year exitYear: Final Net Profit = SV*fxSV - loanHKD + annualCost
+        const finalNet = (sv[exitYear] * fxSV) - loanHKD + annualCost;
+        cfs.push(finalNet);
+
+        const irr = calcIRR(cfs);
+        irrs[exitYear] = irr;
+        details[exitYear] = { cashflows: cfs, finalNet };
+      }
+
+      return {
+        totalPremium, discount, day1Cv, loanUSD, loanHKD, annualFee, initialInvestment, annualCost,
+        day1CvPct, ltvPct, interestRate, sv, irrs, details
+      };
+    }
+
+    // ========== Global State ==========
+    let results = { A: null, B: null, C: null };
+    let irrChart = null;
+
+    // ========== Main ==========
+    function calculateAll() {
+      const rateA = (parseFloat(document.getElementById('rateA').value) || 0) / 100;
+      const rateB = (parseFloat(document.getElementById('rateB').value) || 0) / 100;
+      const rateC = (parseFloat(document.getElementById('rateC').value) || 0) / 100;
+
+      results.A = document.getElementById('enableA').checked ? computeScenario(rateA) : null;
+      results.B = document.getElementById('enableB').checked ? computeScenario(rateB) : null;
+      results.C = document.getElementById('enableC').checked ? computeScenario(rateC) : null;
+
+      renderSummary();
+      renderIRRTable();
+      renderChart();
+      renderSensitivity();
+      renderDetailCF();
+    }
+
+    function renderSummary() {
+      // Use first available result for common numbers
+      const r = results.A || results.B || results.C;
+      if (!r) return;
+
+      document.getElementById('summaryBox').innerHTML = `
+        <div class="bg-slate-50 rounded-lg p-3">
+          <div class="text-[10px] text-slate-500">首日退保價值 (USD)</div>
+          <div class="font-semibold text-slate-800">US$ ${fmt(r.day1Cv)}</div>
+        </div>
+        <div class="bg-slate-50 rounded-lg p-3">
+          <div class="text-[10px] text-slate-500">Financing Amount 融資金額 (USD)</div>
+          <div class="font-semibold text-slate-800">US$ ${fmt(r.loanUSD)}</div>
+        </div>
+        <div class="bg-slate-50 rounded-lg p-3">
+          <div class="text-[10px] text-slate-500">Financing Amount 融資金額 (HKD)</div>
+          <div class="font-semibold text-slate-800">HK$ ${fmt(r.loanHKD)}</div>
+        </div>
+        <div class="bg-slate-50 rounded-lg p-3">
+          <div class="text-[10px] text-slate-500">Initial Investment 最初投資</div>
+          <div class="font-semibold text-slate-800">HK$ ${fmt(r.initialInvestment)}</div>
+        </div>
+        <div class="bg-slate-50 rounded-lg p-3">
+          <div class="text-[10px] text-slate-500">Annual Fee 年費</div>
+          <div class="font-semibold text-slate-800">HK$ ${fmt(r.annualFee, 2)}</div>
+        </div>
+        <div class="bg-slate-50 rounded-lg p-3">
+          <div class="text-[10px] text-slate-500">實際融資比例</div>
+          <div class="font-semibold text-slate-800">${(r.loanUSD / r.totalPremium * 100).toFixed(2)}%</div>
+        </div>
+      `;
+    }
+
+    function renderIRRTable() {
+      const labelA = document.getElementById('labelA').value || '情境 A';
+      const labelB = document.getElementById('labelB').value || '情境 B';
+      const labelC = document.getElementById('labelC').value || '情境 C';
+
+      document.getElementById('thRateA').textContent = results.A ? labelA : '—';
+      document.getElementById('thRateB').textContent = results.B ? labelB : '—';
+      document.getElementById('thRateC').textContent = results.C ? labelC : '—';
+
+      let html = '';
+      for (let y = 5; y <= 10; y++) {
+        const cells = ['A', 'B', 'C'].map(key => {
+          const r = results[key];
+          if (!r) return '<td class="text-right px-4 py-2.5 text-slate-300">—</td>';
+          const irr = r.irrs[y];
+          const cls = irr != null ? (irr >= 0.05 ? 'text-emerald-600 font-semibold' : irr >= 0 ? 'text-amber-600' : 'text-rose-600 font-semibold') : '';
+          return `<td class="text-right px-4 py-2.5 ${cls}">${irr != null ? fmtPct(irr) : '—'}</td>`;
+        }).join('');
+        html += `<tr class="hover:bg-slate-50"><td class="px-4 py-2.5 font-medium">Year ${y}</td>${cells}</tr>`;
+      }
+      document.getElementById('irrBody').innerHTML = html;
+    }
+
+    function renderChart() {
+      const labels = ['Y5', 'Y6', 'Y7', 'Y8', 'Y9', 'Y10'];
+      const datasets = [];
+
+      if (results.A) {
+        datasets.push({
+          label: document.getElementById('labelA').value || '情境 A',
+          data: [5,6,7,8,9,10].map(y => results.A.irrs[y] != null ? +(results.A.irrs[y]*100).toFixed(2) : null),
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59,130,246,0.1)',
+          tension: 0.2,
+          fill: false
+        });
+      }
+      if (results.B) {
+        datasets.push({
+          label: document.getElementById('labelB').value || '情境 B',
+          data: [5,6,7,8,9,10].map(y => results.B.irrs[y] != null ? +(results.B.irrs[y]*100).toFixed(2) : null),
+          borderColor: '#f59e0b',
+          backgroundColor: 'rgba(245,158,11,0.1)',
+          tension: 0.2,
+          fill: false
+        });
+      }
+      if (results.C) {
+        datasets.push({
+          label: document.getElementById('labelC').value || '情境 C',
+          data: [5,6,7,8,9,10].map(y => results.C.irrs[y] != null ? +(results.C.irrs[y]*100).toFixed(2) : null),
+          borderColor: '#10b981',
+          backgroundColor: 'rgba(16,185,129,0.1)',
+          tension: 0.2,
+          fill: false
+        });
+      }
+
+      if (irrChart) irrChart.destroy();
+      const ctx = document.getElementById('irrChart').getContext('2d');
+      irrChart = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'bottom' } },
+          scales: {
+            y: { title: { display: true, text: 'IRR %' }, beginAtZero: false }
+          }
+        }
+      });
+    }
+
+    function renderSensitivity() {
+      // Sensitivity: different interest rates vs exit years (using current SV and other params)
+      const rates = [1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0];
+      const years = [5, 6, 7, 8, 9, 10];
+
+      let thead = '<tr><th class="px-2 py-1.5 bg-slate-100 text-left">利率 ↓ / 退出年 →</th>';
+      years.forEach(y => thead += `<th class="px-2 py-1.5 bg-slate-100">Y${y}</th>`);
+      thead += '</tr>';
+      document.getElementById('sensThead').innerHTML = thead;
+
+      let body = '';
+      rates.forEach(ratePct => {
+        const res = computeScenario(ratePct / 100);
+        body += `<tr><td class="px-2 py-1.5 font-medium bg-slate-50">${ratePct.toFixed(1)}%</td>`;
+        years.forEach(y => {
+          const irr = res.irrs[y];
+          const pct = irr != null ? irr * 100 : null;
+          let cls = 'px-2 py-1.5';
+          if (pct != null) {
+            if (pct >= 8) cls += ' bg-emerald-100 text-emerald-800 font-semibold';
+            else if (pct >= 5) cls += ' bg-emerald-50 text-emerald-700';
+            else if (pct >= 2) cls += ' bg-amber-50 text-amber-700';
+            else if (pct >= 0) cls += ' bg-orange-50 text-orange-700';
+            else cls += ' bg-rose-100 text-rose-700';
+          }
+          body += `<td class="${cls}">${pct != null ? pct.toFixed(1) : '—'}</td>`;
+        });
+        body += '</tr>';
+      });
+      document.getElementById('sensBody').innerHTML = body;
+    }
+
+    function renderDetailCF() {
+      const key = document.getElementById('detailScenario').value;
+      const exitYear = parseInt(document.getElementById('detailYear').value);
+      const r = results[key];
+      if (!r) {
+        document.getElementById('detailBody').innerHTML = '';
+        document.getElementById('detailIRR').textContent = '—';
+        return;
+      }
+
+      const cfs = r.details[exitYear].cashflows;
+      let html = '';
+      for (let t = 0; t < cfs.length; t++) {
+        let desc = '';
+        if (t === 0) desc = 'Initial Investment（最初投資金額）';
+        else if (t === exitYear) desc = `Final Net Profit（SV×現金價值匯率 − 融資金額 + 利息年費）`;
+        else desc = 'Interest + Annual Fee（利息+年費）';
+        const val = cfs[t];
+        const cls = val >= 0 ? 'text-emerald-600' : 'text-rose-600';
+        html += `<tr class="hover:bg-slate-50">
+          <td class="px-4 py-2">${t === 0 ? 'Year 0' : 'Year ' + t}</td>
+          <td class="text-right px-4 py-2 font-medium ${cls}">${val >= 0 ? '+' : ''}${fmt(val, 2)}</td>
+          <td class="px-4 py-2 text-slate-500 text-xs">${desc}</td>
+        </tr>`;
+      }
+      document.getElementById('detailBody').innerHTML = html;
+      document.getElementById('detailIRR').textContent = fmtPct(r.irrs[exitYear]);
+      document.getElementById('detailIRR').className = 'font-bold text-lg ml-2 ' + 
+        (r.irrs[exitYear] >= 0.05 ? 'text-emerald-600' : r.irrs[exitYear] >= 0 ? 'text-amber-600' : 'text-rose-600');
+    }
+
+    function resetAll() {
+      document.getElementById('totalPremium').value = 190000;
+      document.getElementById('discountPct').value = 2;
+      document.getElementById('day1CvPct').value = 83;
+      document.getElementById('ltvPct').value = 95;
+      document.getElementById('annualFeePct').value = 0.25;
+      document.getElementById('fxLoan').value = 7.75;
+      document.getElementById('fxEquity').value = 7.85;
+      document.getElementById('fxSV').value = 7.80;
+      // Reset SV ratios to CTFLife sample
+      document.getElementById('svRatio5').value = 1.17204;
+      document.getElementById('svRatio6').value = 1.26056;
+      document.getElementById('svRatio7').value = 1.35;
+      document.getElementById('svRatio8').value = 1.44803;
+      document.getElementById('svRatio9').value = 1.5515;
+      document.getElementById('svRatio10').value = 1.65;
+      document.getElementById('rateA').value = 3.25;
+      document.getElementById('labelA').value = 'H+1.35% (約 3.25%)';
+      document.getElementById('rateB').value = 4.25;
+      document.getElementById('labelB').value = '壓力測試 4.25%';
+      document.getElementById('rateC').value = 1.60;
+      document.getElementById('labelC').value = '低息環境 1.60%';
+      document.getElementById('enableA').checked = true;
+      document.getElementById('enableB').checked = true;
+      document.getElementById('enableC').checked = true;
+      updateLoanPreview(); // this also calls updateSVFromRatios()
+      calculateAll();
+    }
+
+    // ========== Auto recalculate on any input change ==========
+    function bindAutoCalculate() {
+      const inputIds = [
+        'totalPremium', 'discountPct', 'day1CvPct', 'ltvPct', 'annualFeePct',
+        'fxLoan', 'fxEquity', 'fxSV',
+        'rateA', 'rateB', 'rateC',
+        'labelA', 'labelB', 'labelC',
+        'svRatio5', 'svRatio6', 'svRatio7', 'svRatio8', 'svRatio9', 'svRatio10',
+        'enableA', 'enableB', 'enableC'
+      ];
+
+      inputIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('input', () => {
+          updateLoanPreview();
+          calculateAll();
+        });
+        el.addEventListener('change', () => {
+          updateLoanPreview();
+          calculateAll();
+        });
+      });
+    }
+
+    // Init
+    document.addEventListener('DOMContentLoaded', () => {
+      updateLoanPreview();
+      calculateAll();
+      bindAutoCalculate();
+    });
+  </script>
+</body>
+</html>
